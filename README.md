@@ -56,4 +56,6 @@ This repo is the single source of the map code. Each map's cards live in its own
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE). This covers the code written for this project (`build.py`, `logic.js` and the docs).
+
+**Files from the Claude Design export:** `support.js` (the "dc-runtime") and `template.dc.html` (the page template) were produced by Claude Design and adapted here. They're not covered by the MIT license above, and their own terms are unclear. If they ever need to come out, remove those two files; `build.py` is the only code that reads them.

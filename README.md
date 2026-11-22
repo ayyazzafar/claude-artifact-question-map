@@ -1,4 +1,4 @@
-# Question Map for Claude Artifacts
+# Claude Artifact Question Map
 
 A question-and-answer tree that runs as a [Claude](https://claude.ai) artifact. You ask questions on cards, a Claude Code session answers them on the same cards, and long, nested conversations stay easy to follow.
 
@@ -40,7 +40,7 @@ Use one map per Claude session. Wake-ups work per artifact, so a shared map woul
 This repo is the single source of the map code. Each map's cards live in its own artifact database, so updating the code never touches them.
 
 - Every built page carries its version (`<meta name="qm-version">`), taken from `VERSION`.
-- Add this rule to each project or repo that uses a map: *"Before working on the map, compare its qm-version with VERSION in github.com/ayyazzafar/question-map-for-claude-artifact. If the repo is newer, pull, rebuild and republish to the same URL."*
+- Add this rule to each project or repo that uses a map: *"Before working on the map, compare its qm-version with VERSION in github.com/ayyazzafar/claude-artifact-question-map. If the repo is newer, pull, rebuild and republish to the same URL."*
 - Make code changes here, never inside one map: bump `VERSION`, add a line to `CHANGELOG.md`, then rebuild your maps.
 
 ## Files

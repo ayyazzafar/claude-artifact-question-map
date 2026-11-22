@@ -4,6 +4,8 @@ A question-and-answer tree that runs as a [Claude](https://claude.ai) artifact. 
 
 Built for people who work with several Claude sessions and get lost in long chat threads.
 
+> Unofficial community project, not affiliated with Anthropic. It runs only as a claude.ai artifact, so changes to the artifact runtime can break it.
+
 ## What it does
 
 - **Every question is a card.** Follow-up questions become child cards, so a long discussion turns into a tree you can fold, search and jump around.

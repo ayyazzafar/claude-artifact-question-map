@@ -1,0 +1,5 @@
+# Built pages and your own map list stay out of the repo
+*.built.html
+out/
+maps.json
+.DS_Store

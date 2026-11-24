@@ -2,6 +2,9 @@
 
 Newest first. Bump `VERSION` with every change, add a line here, then rebuild and republish your maps.
 
+## 2.81 (24 Nov 2026)
+- Fix "Updated NaNd ago": card times now accept ISO date strings (like `2026-11-24T05:10:07Z`) and numeric strings as well as ms numbers. Cards written that way by other sessions also sort and count as new correctly.
+
 ## 2.80 (22 Nov 2026)
 - Moved into its own repo so every Claude session builds maps from one source.
 - `build.py` reads the version from `VERSION` and takes an optional `--maps` file (your list of maps) instead of a fixed path.

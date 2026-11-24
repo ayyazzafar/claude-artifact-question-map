@@ -76,7 +76,9 @@ function diffLines(oldS, newS){
   return { text: lines.join('\n'), kinds, n };
 }
 function plain(s){ return (s || '').replace(/\*\*|`|^#+\s*/gm, '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/\n+/g, ' '); }
-function ago(t){ if(!t) return ''; const m = Math.round((Date.now() - t) / MIN); if(m < 1) return 'just now'; if(m < 60) return m + 'm ago'; const h = Math.round(m / 60); return h < 24 ? h + 'h ago' : Math.round(h / 24) + 'd ago'; }
+/* v2.81: timestamps may arrive as ms numbers, numeric strings or ISO strings (written by other sessions); never NaN. */
+function toMs(v){ if(typeof v === 'number') return isFinite(v) ? v : 0; if(typeof v === 'string' && v.trim()){ const n = Number(v); if(isFinite(n)) return n; const p = Date.parse(v); return isFinite(p) ? p : 0; } return 0; }
+function ago(t){ t = toMs(t); if(!t) return ''; const m = Math.round((Date.now() - t) / MIN); if(m < 1) return 'just now'; if(m < 60) return m + 'm ago'; const h = Math.round(m / 60); return h < 24 ? h + 'h ago' : Math.round(h / 24) + 'd ago'; }
 function clock(t){ if(!t) return ''; const d = new Date(t), now = new Date(); const tm = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }); return d.toDateString() === now.toDateString() ? tm : d.toLocaleDateString([], { day: 'numeric', month: 'short' }) + ', ' + tm; }
 // One message = one card. The thread's Claude decides whether to split it into sibling cards (31 Oct: '??' is often just habit).
 function splitQs(t){ return [t.trim()]; }
@@ -126,7 +128,7 @@ function buildCards(nodes, seen){
     const fromThread = /^\(update from/i.test(n.raw || '');
     const origin = flag === 'briefing' ? 'briefing' : (flag === 'update' || (flag && fromThread)) ? 'update' : 'me';
     const g = sig(n);
-    const t = n.createdAt || (n.order > 1e12 ? n.order : 0);
+    const t = toMs(n.createdAt) || (n.order > 1e12 ? n.order : 0), u = toMs(n.updatedAt);
     const raw = (n.raw || '').trim();
     const doneBy = n.resolved ? null : ancDone(n);
     cards[n.id] = {
@@ -138,7 +140,7 @@ function buildCards(nodes, seen){
       links: (n.seeAlso ? [{ type: 'dup', to: n.seeAlso, note: '' }] : []).concat((Array.isArray(n.links) ? n.links : []).filter(l => l && l.id).map(l => ({ type: l.kind === 'same' ? 'dup' : 'read', to: l.id, note: l.note || '' }))),
       imgs: n.imgs && typeof n.imgs === 'object' && !Array.isArray(n.imgs) ? n.imgs : {}, /* v2.65: images embedded in the answer (data URIs), keyed */
       files: [].concat(n.files || [], n.afiles || []).filter(f => f && f.id).map(f => ({ id: f.id, name: f.name || 'file', type: f.type || '', url: '/_blob/' + f.id, isImg: /^image\//.test(f.type || '') })),
-      t: t ? Math.min(t, n.updatedAt || t) : (n.updatedAt || 0), tu: n.updatedAt || t, /* v2.47 §21: never asked after answered */ order: typeof n.order === 'number' ? n.order : 0,
+      t: t ? Math.min(t, u || t) : u, tu: u || t, /* v2.47 §21: never asked after answered */ order: typeof n.order === 'number' ? n.order : 0,
       status, upl: n.upl && typeof n.upl === 'object' ? n.upl : null, /* v2.67: { n, ok, bad: [names] } while files upload after Send */ sig: g, seen: status !== 'answered' || !g || seen[n.id] === g, changed: status === 'answered' && !!g && !!seen[n.id] && seen[n.id] !== g,
       read: !!n.read, resolved: !!n.resolved, done: !!n.resolved || !!doneBy, doneBy, doneAt: n.resolvedAt || 0, pinned: !!n.pinned
     };
@@ -233,7 +235,7 @@ class Component extends DCLogic {
       const g = sig(n); if(g && n.asig === g && n.read && n.readA == null && !this.legacy.has(n.id)){ this.queueBackfill(n.id, n.a || ''); return; } /* v2.55: backfill what he read, so later edits can be shown. v2.56: queued one at a time (the bulk version re-fired on every snapshot and starved uploads) */
       if(!g || n.asig === g || this.legacy.has(n.id)) return;
       const patch = { asig: g, updatedAt: Date.now() }; if(n.asig && n.read) patch.read = false; /* v2.53: a changed answer is unread again (shows in Unread too) */
-      if(!n.createdAt) patch.createdAt = (n.order > 1e12 ? n.order : Date.now());
+      if(!toMs(n.createdAt)) patch.createdAt = (n.order > 1e12 ? n.order : Date.now());
       this.db.collection('nodes').doc(n.id).update(patch).catch(() => {});
     });
   }
@@ -243,7 +245,7 @@ class Component extends DCLogic {
     const path = []; let c = n, g = 0; while(c && g++ < 200){ path.unshift(c); c = c.parent ? nodes[c.parent] : null; }
     // v2.28 fix (1 Nov, video): only a card answered or created AFTER the branch was marked done reopens it.
     // Before, any card this device hadn't seen did, so a second open window (Dock app + browser tab) undid every Done.
-    const t = Math.max(Number(n.createdAt) || 0, Number(n.updatedAt) || 0); if(!t) return;
+    const t = Math.max(toMs(n.createdAt), toMs(n.updatedAt)); if(!t) return;
     const done = path.slice(0, -1).filter(a => a.resolved && t > (Number(a.resolvedAt) || 0)); if(!done.length) return;
     this.surfacing[n.id] = true;
     const onPath = new Set(path.map(x => x.id));

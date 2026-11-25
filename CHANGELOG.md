@@ -8,6 +8,7 @@ Newest first. Bump `VERSION` with every change, add a line here, then rebuild an
   - after one **Turn on** tap, shows the count in the macOS menu bar (Windows: system tray) and sends a notification for each new answer while the window is in the background.
 - `build.py` adds the `claude-artifacts-manifest` tag listing the `notifications` and `menu-bar` permissions.
 - Outside the installed app (browser, artifact panel, phone) nothing changes.
+
 ## 2.81 (24 Nov 2026)
 - Fix "Updated NaNd ago": card times now accept ISO date strings (like `2026-11-24T05:10:07Z`) and numeric strings as well as ms numbers. Cards written that way by other sessions also sort and count as new correctly.
 

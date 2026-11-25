@@ -12,11 +12,12 @@ Built for people who work with several Claude sessions and get lost in long chat
 - **Claude answers on the card.** Asking posts a comment on the artifact. That comment wakes the Claude Code session watching the map, and the session writes its answer into the card.
 - **Drafts you can send.** When the answer includes a message for someone else, it appears as a draft with Copy and Sent buttons.
 - **Unread tracking.** New and unread answers are marked, and that state syncs across your devices.
+- **Desktop app.** Install the map as an app from the Claude desktop app (artifact menu → Install as app). It shows the unread count on its Dock icon and, once you allow it, in the menu bar, and notifies you of new answers.
 - **Organised.** Workspaces, folders, several trees per map, search, Focus mode and a phone layout.
 
 ## What you need
 
-- A claude.ai account that can publish artifacts with the `db`, `comments` and `assets` capabilities.
+- A claude.ai account that can publish artifacts with the `db`, `comments`, `assets` and `desktop` capabilities.
 - A Claude Code session that publishes the map and watches it for comments. Comments are what wake it.
 - Python 3 to run the build script.
 
@@ -26,7 +27,7 @@ Built for people who work with several Claude sessions and get lost in long chat
    ```bash
    python3 build.py --title "My Question Map" --topic "Project catch-up" --thread "My Claude session" --out out/my-map/index.html
    ```
-2. Ask your Claude Code session to publish `out/my-map/index.html` as an artifact with the capabilities `{"db": {}, "comments": {}, "assets": {}}`. Publishing also makes the session watch it.
+2. Ask your Claude Code session to publish `out/my-map/index.html` as an artifact with the capabilities `{"db": {}, "comments": {}, "assets": {}, "desktop": {}}`. Publishing also makes the session watch it.
 3. Open the artifact and ask your first question. Your session answers following [PLAYBOOK.md](PLAYBOOK.md).
 
 After the first publish, rebuild with `--url <artifact url>` so the map knows its own address.

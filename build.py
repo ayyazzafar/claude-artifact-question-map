@@ -104,6 +104,7 @@ patch('    return {\n      template: dc.innerHTML,', '    const qmTpl = doc.getE
 
 page = f'''<title>{a.title}</title>
 <meta name="qm-version" content="{QM_VERSION}">
+<script type="application/json" id="claude-artifacts-manifest">{{"permissions": ["notifications", "menu-bar"]}}</script>
 {head.strip()}
 <style>
 :root{{--page:#f7f4ee}}

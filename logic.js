@@ -80,6 +80,12 @@ function plain(s){ return (s || '').replace(/\*\*|`|^#+\s*/gm, '').replace(/\[([
 function toMs(v){ if(typeof v === 'number') return isFinite(v) ? v : 0; if(typeof v === 'string' && v.trim()){ const n = Number(v); if(isFinite(n)) return n; const p = Date.parse(v); return isFinite(p) ? p : 0; } return 0; }
 function ago(t){ t = toMs(t); if(!t) return ''; const m = Math.round((Date.now() - t) / MIN); if(m < 1) return 'just now'; if(m < 60) return m + 'm ago'; const h = Math.round(m / 60); return h < 24 ? h + 'h ago' : Math.round(h / 24) + 'd ago'; }
 function clock(t){ if(!t) return ''; const d = new Date(t), now = new Date(); const tm = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }); return d.toDateString() === now.toDateString() ? tm : d.toLocaleDateString([], { day: 'numeric', month: 'short' }) + ', ' + tm; }
+// v2.81: menu bar icon for the desktop app: a small tree (three dots, two branches), black on clear so macOS tints it.
+let deskIconUrl = null;
+const deskIcon = () => { if(deskIconUrl) return deskIconUrl; const c = document.createElement('canvas'); c.width = c.height = 36; const x = c.getContext('2d');
+  x.strokeStyle = x.fillStyle = '#000'; x.lineWidth = 3; x.beginPath(); x.moveTo(18, 10); x.lineTo(9, 26); x.moveTo(18, 10); x.lineTo(27, 26); x.stroke();
+  [[18, 8], [9, 28], [27, 28]].forEach(([a, b]) => { x.beginPath(); x.arc(a, b, 5, 0, Math.PI * 2); x.fill(); });
+  return (deskIconUrl = c.toDataURL('image/png')); };
 // One message = one card. The thread's Claude decides whether to split it into sibling cards (31 Oct: '??' is often just habit).
 function splitQs(t){ return [t.trim()]; }
 function diffSegs(rew, orig){ const set = new Set(orig.toLowerCase().match(/[a-z0-9#']+/g) || []); return rew.split(/(\s+)/).map(tok => { const w = (tok.toLowerCase().match(/[a-z0-9#']+/) || [''])[0]; const hl = !!w && !set.has(w); return { t: tok, hl, nhl: !hl }; }); }
@@ -184,6 +190,7 @@ class Component extends DCLogic {
     if(!C || !C.use){ this.setState({ status: 'nohost' }); return; }
     const [db, comments, assets] = await Promise.all([C.use('db'), C.use('comments').catch(() => null), C.use('assets').catch(() => null)]);
     this.db = db; this.comments = comments; this.assets = assets;
+    C.use('desktop').then(d => this.deskInit(d), () => {}); /* v2.81: installed desktop app (badge, menu bar, notifications) */
     if(!db){ this.setState({ status: 'signedout' }); return; }
     let sendState = 'off'; if(comments){ try{ sendState = await comments.canSendToClaude(); }catch(e){} }
     this.setState({ sendState });
@@ -264,6 +271,7 @@ class Component extends DCLogic {
     if(ps && ps.openId !== this.state.openId && this.readerScrollRef.current) requestAnimationFrame(() => { if(this.readerScrollRef.current) this.readerScrollRef.current.scrollTop = 0; });
     clearTimeout(this.saveT); this.saveT = setTimeout(() => { const s = this.state; save(LS, { showAll: s.showAll, lvlShown: s.lvlShown, collapsed: s.collapsed, foldersShut: s.foldersShut, focus: s.focus, cardW: s.cardW, sideW: s.sideW, rail: s.rail, curWs: s.curWs, curTree: s.curTree, lastTree: s.lastTree, comp: s.comp, theme: s.theme, sound: s.sound, hlOff: s.hlOff }); try{ localStorage.setItem('qm2-here', JSON.stringify({ openId: s.openId, view: s.view, tree: s.curTree, at: Date.now() })); }catch(e){} /* v2.54: survive a republish reload */ }, 250);
     const n = this.inboxN || 0; document.title = (n ? '(' + (n > 99 ? '99+' : n) + ') ' : '') + CFG.title;
+    this.deskSync();
     const bg = getComputedStyle(this.rootRef.current || document.body).getPropertyValue('--bg'); if(bg) document.documentElement.style.background = document.body.style.background = bg.trim();
     if(this.pendingScroll){ const id = this.pendingScroll; this.pendingScroll = null; requestAnimationFrame(() => { const root = this.rootRef.current; const sc = this.mainScrollRef.current; const el = root && root.querySelector('[data-row="' + id + '"]'); if(el && sc){ const r = el.getBoundingClientRect(), rs = sc.getBoundingClientRect(); if(r.top < rs.top || r.bottom > rs.bottom) sc.scrollTop += (r.top - rs.top) - rs.height / 3; } if(this.readerScrollRef.current) this.readerScrollRef.current.scrollTop = 0; }); }
     if(this.focusTree){ this.focusTree = false; setTimeout(() => this.treeTa.current && this.treeTa.current.focus(), 30); }
@@ -337,9 +345,42 @@ class Component extends DCLogic {
     await Promise.all(unread.filter(i => i !== id).map(i => this.w(i, { read: true })));
     this.showToast({ kind: 'done', icon: '✓', foldId: id, text: ids.length > 1 ? 'Branch done · ' + ids.length + ' cards cleared' : 'Done · card cleared', action: 'Undo', onAction: async () => { this.setState({ toast: null }); this.justDone = Object.assign({}, this.justDone, { [id]: 0 }); await this.w(id, { resolved: false }); await Promise.all(unread.map(i => this.w(i, { read: false }))); } });
   }
+  // v2.81: "Install as app" (Claude desktop app). Only inside the installed app's window does claude.use('desktop') carry
+  // app/permissions; elsewhere it holds just `install`, so all of this stays off in a browser tab or the artifact panel.
+  // Dock badge = the same count as the Inbox badge (needs no permission). Menu bar item and notifications need the
+  // person's OK: asked from a button in a toast (never bare on load), and the page works the same if they say no.
+  async deskInit(d){
+    if(!d || !d.app || !d.permissions) return;
+    this.desk = d;
+    try{ this.deskPerm = await d.permissions.state(); }catch(e){ this.deskPerm = {}; }
+    this.deskSync(true);
+    const p = this.deskPerm || {};
+    if(p.notifications === 'prompt' || p['menu-bar'] === 'prompt') setTimeout(() => this.showToast({ kind: 'info', icon: '🔔', ms: 20000, text: 'Get a notification for each new answer and the unread count in the menu bar?', action: 'Turn on', onAction: () => this.deskAsk() }), 2500);
+  }
+  async deskAsk(){
+    this.setState({ toast: null }); const d = this.desk; if(!d) return;
+    try{ this.deskPerm = await d.permissions.request(['notifications', 'menu-bar']); }catch(e){}
+    this.deskSync(true);
+  }
+  deskSync(force){
+    const d = this.desk; if(!d) return;
+    const n = this.inboxN || 0; if(!force && n === this.deskN) return; this.deskN = n;
+    const txt = n ? (n > 99 ? '99+' : String(n)) : '';
+    d.app.dock.setBadge(txt).catch(() => {});
+    if((this.deskPerm || {})['menu-bar'] === 'granted') d.tray.set({ icon: deskIcon(), title: txt, toolTip: (n ? n + ' unread · ' : 'All caught up · ') + CFG.title,
+      menu: [{ label: n ? n + ' unread' : 'All caught up', enabled: false }, { type: 'separator' }, { label: 'Open ' + CFG.title, click: () => { d.window.show().catch(() => {}); } }] }).catch(() => {});
+  }
+  deskNotify(ids){
+    const d = this.desk; if(!d || (this.deskPerm || {}).notifications !== 'granted') return;
+    if(!document.hidden && document.hasFocus()) return; /* he is looking at the map: the in-page toast is enough */
+    const nodes = this.state.nodes || {}; const names = ids.map(i => nodes[i]).filter(Boolean).map(c => String(c.qHead || c.q || 'a card'));
+    if(!names.length) return;
+    const body = (names.length === 1 ? 'New answer: ' + names[0] : names.length + ' new answers: ' + names.slice(0, 3).join(' · ')).slice(0, 300);
+    d.notification.show({ body }).catch(() => {});
+  }
   showToast(t){ clearTimeout(this.toastT); this.setState({ toast: Object.assign({}, t, { at: Date.now() }) }); this.toastT = setTimeout(() => this.setState({ toast: null }), t.ms || (t.kind === 'new' ? 9000 : t.icon === '!' ? 8000 : t.action ? 6000 : 5000)); }
   beep(){ try{ const a = this.ac || (this.ac = new AudioContext()); const o = a.createOscillator(), g = a.createGain(); o.frequency.value = 740; g.gain.setValueAtTime(.08, a.currentTime); g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + .25); o.connect(g).connect(a.destination); o.start(); o.stop(a.currentTime + .26); }catch(e){} }
-  arrived(ids){ if(this.state.sound) this.beep(); const s = this.state; const ids2 = ids.filter(i => i !== s.openId); if(!ids2.length) return; const prev = s.toast && s.toast.kind === 'new' && Date.now() - s.toast.at < 9000 ? s.toast.ids : []; this.showToast({ kind: 'new', ids: [...prev, ...ids2] }); }
+  arrived(ids){ this.deskNotify(ids); if(this.state.sound) this.beep(); const s = this.state; const ids2 = ids.filter(i => i !== s.openId); if(!ids2.length) return; const prev = s.toast && s.toast.kind === 'new' && Date.now() - s.toast.at < 9000 ? s.toast.ids : []; this.showToast({ kind: 'new', ids: [...prev, ...ids2] }); }
   // v2.33 round 2 §17: show the parent of a row (hover 400 ms on desktop, long-press on phone)
   rowEl(id){ const root = this.rootRef.current; return root && root.querySelector('[data-row="' + id + '"]'); }
   hoverRow(id){ const c = this.cardsNow && this.cardsNow[id]; if(!c || !c.parent) return; const el = this.rowEl(c.parent); const sc = this.mainScrollRef.current; let off = 0;
